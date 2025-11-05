@@ -9,7 +9,7 @@ import {
   Image, X, Download, Sparkles, Heart, Zap, Star, Award, Loader2,
   Paperclip, Camera, FileImage, FileType, Eye, EyeOff, LogOut,
   ChevronRight, ChevronLeft, ArrowRight, ArrowLeft, Droplets, Moon,
-  Coffee, Cigarette, Wine, Target, Scale
+  Coffee, Cigarette, Wine, Target, Scale,ExternalLink
 } from 'lucide-react';
 import { marked } from 'marked';
 import { useRouter } from 'next/navigation';
@@ -555,12 +555,53 @@ function ClinicalMessage({ message, isUser, apiResponse = null, messageType = 'g
             dangerouslySetInnerHTML={{ __html: marked.parse(apiResponse?.response || message) }}
           />
 
-          {!isUser && apiResponse?.medical_context && (
-            <MedicalContext
-               medicalContext={apiResponse.medical_context}
-               domain={apiResponse.domain}
-            />
-          )}
+ {/* Sources Display */}
+{!isUser && apiResponse?.sources?.length > 0 && (
+  <motion.div className="mt-4 pt-4 border-t border-slate-700/40">
+    <h4 className="text-sm font-semibold text-gray-200 mb-2 flex items-center gap-2">
+      <FileText className="w-4 h-4 text-blue-400" />
+      Medical Sources ({apiResponse.sources.length})
+    </h4>
+    <div className="space-y-2">
+      {apiResponse.sources.slice(0, 5).map((source, idx) => (
+        <div key={idx} className="flex items-start gap-2 p-3 bg-slate-800/40 border border-slate-700/40 rounded-lg text-xs">
+          <span className="text-blue-400 font-semibold flex-shrink-0">[{idx + 1}]</span>
+          <div className="flex-1">
+            <p className="text-gray-300 mb-1">
+              <span className="font-medium capitalize">{source.source_type}</span>
+              {source.relevance_score && (
+                <span className="text-gray-500 ml-2">
+                  ({(source.relevance_score * 100).toFixed(0)}% relevant)
+                </span>
+              )}
+            </p>
+            <p className="text-gray-400 text-xs line-clamp-2 mb-2">{source.content}</p>
+            
+            {/* ✅ MAKE IT CLICKABLE */}
+            {source.source_url && source.source_url !== '' && (
+              <a
+                href={source.source_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-400 hover:text-blue-300 inline-flex items-center gap-1 transition-colors underline"
+              >
+                View Source <ExternalLink className="w-3 h-3" />
+              </a>
+            )}
+            
+            {/* If no URL, show note */}
+            {(!source.source_url || source.source_url === '') && (
+              <span className="text-gray-500 text-xs italic">
+                Source: {source.source_type} (No direct link available)
+              </span>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  </motion.div>
+)}
+
         </motion.div>
       </div>
       
@@ -792,7 +833,7 @@ function ClinicalCDSSChat() {
   };
 
   // API configuration
-  const API_URL = 'https://healthcare-ai-service-729813973979.us-central1.run.app/api/query';
+  const API_URL = 'https://healthcare-ai-729813973979.us-central1.run.app/api/query';
   const API_KEY = 'aslka@kasdmSw12';
 
   // Load chat history and user data
@@ -941,18 +982,14 @@ function ClinicalCDSSChat() {
       // Build enhanced query with full context
       let contextSections = [];
       
-      if (conversationHistory) {
-        contextSections.push(`CONVERSATION HISTORY:\n${conversationHistory}`);
-      }
+     
       
       if (patientContext) {
         contextSections.push(`PATIENT PROFILE:\n${patientContext}`);
       }
       
       let enhancedQuery = query;
-      if (contextSections.length > 0) {
-        enhancedQuery = `${contextSections.join('\n\n')}\n\nCURRENT QUERY: ${query}`;
-      }
+    
       
       if (files.length > 0) {
         const fileInfo = files.map(f => `File: ${f.name} (${f.type})`).join(', ');
@@ -980,8 +1017,8 @@ function ClinicalCDSSChat() {
       
       console.log(conversationHistory);
       
-      enhancedQuery = enhancedQuery + conversationHistory;
-  
+      enhancedQuery = "PATIENT INFO"+patientContext +"QUERY:"+enhancedQuery
+      console.log(enhancedQuery)
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: {
@@ -990,9 +1027,10 @@ function ClinicalCDSSChat() {
         },
         body: JSON.stringify({
           question: enhancedQuery,
-          domain: selectedMode !== 'general' ? selectedMode : undefined,
+          patient_info: filteredPatientInfo  // ADD THIS LINE
         })
       });
+      
   
       if (!response.ok) {
         let errorData = {};
@@ -1005,28 +1043,36 @@ function ClinicalCDSSChat() {
         throw new Error(errorMessage);
       }
   
+ 
       const data = await response.json();
-      
-      return {
-        response: data.response,
-        domain: data.domain,
-        timestamp: new Date().toISOString(),
-        confidence: data.confidence,
-        safety: {
-          is_safe: data.safety_assessment?.is_safe ?? true,
-          message: data.safety_assessment?.message || '✅ Safe',
-          safety_level: data.safety_assessment?.safety_level
-        },
-        medical_context: {
-          safety_considerations: data.safety_assessment?.issues || [],
-          follow_up_recommendations: data.recommendations || []
-        },
-        processing_time: data.processing_time_seconds,
-        context_used: {
-          conversation_history: conversationHistory.length > 0,
-          patient_profile: patientContext.length > 0
-        }
-      };
+      const result = data.output || data;
+
+return {
+  response: result.answer || result.response || 'No response received',
+  domain: result.expert_type || result.domain || 'general',
+  timestamp: result.timestamp || new Date().toISOString(),
+  confidence: result.confidence || {
+    overall_confidence: 0.5,
+    confidence_level: 'Moderate',
+    component_scores: {}
+  },
+  safety: {
+    is_safe: result.safety_assessment?.is_safe ?? true,
+    message: result.safety_assessment?.message || '✅ Safe',
+    safety_level: result.safety_assessment?.safety_level || 'Safe'
+  },
+  medical_context: {
+    safety_considerations: result.safety_assessment?.issues || [],
+    follow_up_recommendations: result.recommendations || []
+  },
+  sources: result.sources || [],  // ADD THIS LINE
+  processing_time: result.processing_time_seconds || result.total_processing_time || 0,
+  status: result.status || 'success',
+  context_used: {
+    conversation_history: conversationHistory.length > 0,
+    patient_profile: patientContext.length > 0
+  }
+};
     } catch (error) {
       console.error('API Error:', error);
       throw error;
