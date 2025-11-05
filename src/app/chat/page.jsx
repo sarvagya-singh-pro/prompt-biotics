@@ -858,172 +858,180 @@ function ClinicalCDSSChat() {
     }
   }, [input]);
 
-    const callMedicalAPI = async (query, files = [], currentMessages = []) => {
-      try {
-        // Build conversation history context (last 10 messages to avoid token limits)
-        const buildConversationHistory = () => {
-          // Get last 10 messages (5 exchanges) to maintain context without overwhelming the API
-          const recentMessages = currentMessages.slice(-10);
-          
-          return recentMessages.map(msg => {
-            const role = msg.isUser ? 'User' : 'Assistant';
-            const content = msg.text.replace(/\*\*(.*?)\*\*/g, '$1'); // Remove markdown for cleaner context
-            return `${role}: ${content}`;
-          }).join('\n');
-        };
-    
-        // Build comprehensive patient context from survey data
-        const buildPatientContext = () => {
-          const context = [];
-          
-          // Basic Information
-          if (userData?.age) context.push(`Age: ${userData.age} years`);
-          if (userData?.gender) context.push(`Gender: ${userData.gender}`);
-          if (userData?.height) context.push(`Height: ${userData.height} cm`);
-          if (userData?.weight) context.push(`Weight: ${userData.weight} kg`);
-          if (userData?.weightGoal) context.push(`Weight Goal: ${userData.weightGoal}`);
-          
-          // BMI calculation
-          if (userData?.height && userData?.weight) {
-            const bmi = (userData.weight / ((userData.height / 100) ** 2)).toFixed(1);
-            context.push(`BMI: ${bmi} (${getBMICategory(bmi)})`);
-          }
-          
-          // Activity & Lifestyle
-          if (userData?.activityLevel) context.push(`Activity Level: ${userData.activityLevel}`);
-          if (userData?.sleepDuration) context.push(`Sleep: ${userData.sleepDuration}`);
-          if (userData?.occupationType) context.push(`Occupation: ${userData.occupationType}`);
-          
-          // Medical History
-          if (userData?.medicalConditions?.length > 0) {
-            context.push(`Medical Conditions: ${userData.medicalConditions.join(', ')}`);
-          }
-          if (userData?.allergies) context.push(`Allergies: ${userData.allergies}`);
-          if (userData?.medications) context.push(`Medications: ${userData.medications}`);
-          
-          // Dietary Preferences
-          if (userData?.dietPattern) context.push(`Diet: ${userData.dietPattern}`);
-          if (userData?.mealsPerDay) context.push(`Meals per day: ${userData.mealsPerDay}`);
-          if (userData?.foodDislikes) context.push(`Food dislikes: ${userData.foodDislikes}`);
-          
-          // Current Habits
-          if (userData?.waterIntake) context.push(`Water intake: ${userData.waterIntake}`);
-          if (userData?.alcoholConsumption) context.push(`Alcohol: ${userData.alcoholConsumption}`);
-          if (userData?.caffeineIntake) context.push(`Caffeine: ${userData.caffeineIntake}`);
-          if (userData?.cookingFrequency) context.push(`Cooking frequency: ${userData.cookingFrequency}`);
-          
-          // Additional Information
-          if (userData?.stressLevel) context.push(`Stress level: ${userData.stressLevel}`);
-          if (userData?.digestiveIssues) context.push(`Digestive issues: ${userData.digestiveIssues}`);
-          if (userData?.healthGoals) context.push(`Health goals: ${userData.healthGoals}`);
-          
-          return context.join('\n');
-        };
-    
-        // Helper function for BMI categorization
-        const getBMICategory = (bmi) => {
-          const bmiValue = parseFloat(bmi);
-          if (bmiValue < 18.5) return 'Underweight';
-          if (bmiValue < 25) return 'Normal weight';
-          if (bmiValue < 30) return 'Overweight';
-          return 'Obese';
-        };
-    
-        const patientContext = buildPatientContext();
-        const conversationHistory = buildConversationHistory();
+  const callMedicalAPI = async (query, files = [], currentMessages = []) => {
+    try {
+      // Build conversation history context (last 10 messages to avoid token limits)
+      const buildConversationHistory = () => {
+        // Get last 10 messages (5 exchanges) to maintain context without overwhelming the API
+        const recentMessages = currentMessages.slice(-10);
         
-        // Build enhanced query with full context
-        let contextSections = [];
+        return recentMessages.map(msg => {
+          const role = msg.isUser ? 'User' : 'Assistant';
+          // Remove markdown and clean up content for cleaner context
+          const content = msg.text
+            .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold
+            .replace(/\*(.*?)\*/g, '$1')     // Remove italic
+            .replace(/\n+/g, ' ')            // Replace multiple newlines with space
+            .trim();
+          
+          return `${role}: ${content}`;
+        }).join('\n');
+      };
+  
+      // Build comprehensive patient context from survey data
+      const buildPatientContext = () => {
+        const context = [];
         
-        if (conversationHistory) {
-          contextSections.push(`CONVERSATION HISTORY:\n${conversationHistory}`);
+        // Basic Information
+        if (userData?.age) context.push(`Age: ${userData.age} years`);
+        if (userData?.gender) context.push(`Gender: ${userData.gender}`);
+        if (userData?.height) context.push(`Height: ${userData.height} cm`);
+        if (userData?.weight) context.push(`Weight: ${userData.weight} kg`);
+        if (userData?.weightGoal) context.push(`Weight Goal: ${userData.weightGoal}`);
+        
+        // BMI calculation
+        if (userData?.height && userData?.weight) {
+          const bmi = (userData.weight / ((userData.height / 100) ** 2)).toFixed(1);
+          context.push(`BMI: ${bmi} (${getBMICategory(bmi)})`);
         }
         
-        if (patientContext) {
-          contextSections.push(`PATIENT PROFILE:\n${patientContext}`);
-        }
+        // Activity & Lifestyle
+        if (userData?.activityLevel) context.push(`Activity Level: ${userData.activityLevel}`);
+        if (userData?.sleepDuration) context.push(`Sleep: ${userData.sleepDuration}`);
+        if (userData?.occupationType) context.push(`Occupation: ${userData.occupationType}`);
         
-        let enhancedQuery = query;
-        if (contextSections.length > 0) {
-          enhancedQuery = `${contextSections.join('\n\n')}\n\nCURRENT QUERY: ${query}`;
+        // Medical History
+        if (userData?.medicalConditions?.length > 0) {
+          context.push(`Medical Conditions: ${userData.medicalConditions.join(', ')}`);
         }
+        if (userData?.allergies) context.push(`Allergies: ${userData.allergies}`);
+        if (userData?.medications) context.push(`Medications: ${userData.medications}`);
         
-        if (files.length > 0) {
-          const fileInfo = files.map(f => `File: ${f.name} (${f.type})`).join(', ');
-          enhancedQuery += `\n\nATTACHED FILES: ${fileInfo}`;
-        }
-    
-        // Enhanced patient info for structured data
-        const enhancedPatientInfo = {
-          // Basic Information
-              current_mode: selectedMode
-        };
-    
-        // Filter out null values for cleaner payload
-        const filteredPatientInfo = Object.fromEntries(
-          Object.entries(enhancedPatientInfo).filter(([_, value]) => 
-            value !== null && value !== undefined && value !== ''
-          )
-        );
-    
-        console.log('Sending enhanced context to API:', {
-          conversation_messages: currentMessages.length,
-          patient_data_points: Object.keys(filteredPatientInfo).length,
-          domain: selectedMode
-        });
-    
-        const response = await fetch(API_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Api-Key': API_KEY
-          },
-          body: JSON.stringify({
-            question: enhancedQuery,
-          
-            domain: selectedMode !== 'general' ? selectedMode : undefined,
-           
-          })
-        });
-    
-        if (!response.ok) {
-          let errorData = {};
-          try {
-            errorData = await response.json();
-          } catch (jsonError) {
-            console.error("Failed to parse error response JSON:", jsonError);
-          }
-          const errorMessage = errorData.error || `API call failed: ${response.status} ${response.statusText}`;
-          throw new Error(errorMessage);
-        }
-    
-        const data = await response.json();
+        // Dietary Preferences
+        if (userData?.dietPattern) context.push(`Diet: ${userData.dietPattern}`);
+        if (userData?.mealsPerDay) context.push(`Meals per day: ${userData.mealsPerDay}`);
+        if (userData?.foodDislikes) context.push(`Food dislikes: ${userData.foodDislikes}`);
         
-        return {
-          response: data.response,
-          domain: data.domain,
-          timestamp: new Date().toISOString(),
-          confidence: data.confidence,
-          safety: {
-            is_safe: data.safety_assessment?.is_safe ?? true,
-            message: data.safety_assessment?.message || '✅ Safe',
-            safety_level: data.safety_assessment?.safety_level
-          },
-          medical_context: {
-            safety_considerations: data.safety_assessment?.issues || [],
-            follow_up_recommendations: data.recommendations || []
-          },
-          processing_time: data.processing_time_seconds,
-          context_used: {
-            conversation_history: conversationHistory.length > 0,
-            patient_profile: patientContext.length > 0
-          }
-        };
-      } catch (error) {
-        console.error('API Error:', error);
-        throw error;
+        // Current Habits
+        if (userData?.waterIntake) context.push(`Water intake: ${userData.waterIntake}`);
+        if (userData?.alcoholConsumption) context.push(`Alcohol: ${userData.alcoholConsumption}`);
+        if (userData?.caffeineIntake) context.push(`Caffeine: ${userData.caffeineIntake}`);
+        if (userData?.cookingFrequency) context.push(`Cooking frequency: ${userData.cookingFrequency}`);
+        
+        // Additional Information
+        if (userData?.stressLevel) context.push(`Stress level: ${userData.stressLevel}`);
+        if (userData?.digestiveIssues) context.push(`Digestive issues: ${userData.digestiveIssues}`);
+        if (userData?.healthGoals) context.push(`Health goals: ${userData.healthGoals}`);
+        
+        return context.join('\n');
+      };
+  
+      // Helper function for BMI categorization
+      const getBMICategory = (bmi) => {
+        const bmiValue = parseFloat(bmi);
+        if (bmiValue < 18.5) return 'Underweight';
+        if (bmiValue < 25) return 'Normal weight';
+        if (bmiValue < 30) return 'Overweight';
+        return 'Obese';
+      };
+  
+      const patientContext = buildPatientContext();
+      const conversationHistory = buildConversationHistory();
+    
+      // Build enhanced query with full context
+      let contextSections = [];
+      
+      if (conversationHistory) {
+        contextSections.push(`CONVERSATION HISTORY:\n${conversationHistory}`);
       }
-    };
+      
+      if (patientContext) {
+        contextSections.push(`PATIENT PROFILE:\n${patientContext}`);
+      }
+      
+      let enhancedQuery = query;
+      if (contextSections.length > 0) {
+        enhancedQuery = `${contextSections.join('\n\n')}\n\nCURRENT QUERY: ${query}`;
+      }
+      
+      if (files.length > 0) {
+        const fileInfo = files.map(f => `File: ${f.name} (${f.type})`).join(', ');
+        enhancedQuery += `\n\nATTACHED FILES: ${fileInfo}`;
+      }
+  
+      // Enhanced patient info for structured data
+      const enhancedPatientInfo = {
+        // Basic Information
+        current_mode: selectedMode
+      };
+  
+      // Filter out null values for cleaner payload
+      const filteredPatientInfo = Object.fromEntries(
+        Object.entries(enhancedPatientInfo).filter(([_, value]) => 
+          value !== null && value !== undefined && value !== ''
+        )
+      );
+  
+      console.log('Sending enhanced context to API:', {
+        conversation_messages: currentMessages.length,
+        patient_data_points: Object.keys(filteredPatientInfo).length,
+        domain: selectedMode
+      });
+      
+      console.log(conversationHistory);
+      
+      enhancedQuery = enhancedQuery + conversationHistory;
+  
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Api-Key': API_KEY
+        },
+        body: JSON.stringify({
+          question: enhancedQuery,
+          domain: selectedMode !== 'general' ? selectedMode : undefined,
+        })
+      });
+  
+      if (!response.ok) {
+        let errorData = {};
+        try {
+          errorData = await response.json();
+        } catch (jsonError) {
+          console.error("Failed to parse error response JSON:", jsonError);
+        }
+        const errorMessage = errorData.error || `API call failed: ${response.status} ${response.statusText}`;
+        throw new Error(errorMessage);
+      }
+  
+      const data = await response.json();
+      
+      return {
+        response: data.response,
+        domain: data.domain,
+        timestamp: new Date().toISOString(),
+        confidence: data.confidence,
+        safety: {
+          is_safe: data.safety_assessment?.is_safe ?? true,
+          message: data.safety_assessment?.message || '✅ Safe',
+          safety_level: data.safety_assessment?.safety_level
+        },
+        medical_context: {
+          safety_considerations: data.safety_assessment?.issues || [],
+          follow_up_recommendations: data.recommendations || []
+        },
+        processing_time: data.processing_time_seconds,
+        context_used: {
+          conversation_history: conversationHistory.length > 0,
+          patient_profile: patientContext.length > 0
+        }
+      };
+    } catch (error) {
+      console.error('API Error:', error);
+      throw error;
+    }
+  };
   
 
   const handleFileUpload = (files) => {
@@ -1142,7 +1150,7 @@ function ClinicalCDSSChat() {
     }, 100);
 
     try {
-      const apiResponse = await callMedicalAPI(userMessage, currentFiles);
+      const apiResponse = await callMedicalAPI(userMessage, currentFiles, newMessages);
 
       setIsTyping(false);
       setMessages(prev => {
