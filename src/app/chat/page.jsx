@@ -988,7 +988,7 @@ function ClinicalCDSSChat() {
         contextSections.push(`PATIENT PROFILE:\n${patientContext}`);
       }
       
-      let enhancedQuery = query;
+      let enhancedQuery = "Conversation History:"+conversationHistory+"Current query"+query;
     
       
       if (files.length > 0) {
