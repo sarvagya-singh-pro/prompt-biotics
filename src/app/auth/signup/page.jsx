@@ -1,1162 +1,767 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Send, Mic, Settings, Activity, Brain, History, Search, Plus, Trash2, 
-  Stethoscope, Pill, Utensils, AlertTriangle, FileText, User, Calendar, 
-  Shield, TrendingUp, CheckCircle, AlertCircle, Info, Upload, File, 
-  Image, X, Download, Sparkles, Heart, Zap, Star, Award, Loader2,
-  Paperclip, Camera, FileImage, FileType, Eye, EyeOff, LogOut,
-  ChevronRight, ChevronLeft, ArrowRight, ArrowLeft, Droplets, Moon,
-  Coffee, Cigarette, Wine, Target, Scale
+  Stethoscope, Activity, ShieldAlert, ArrowRight, ArrowLeft,
+  CheckCircle2, Loader2, Database, User, FileText,
+  Utensils, Moon, AlertCircle, Zap, Coffee, Target, Scale,
+  Pill, Wine, Droplets, Info, LogOut
 } from 'lucide-react';
-import { marked } from 'marked';
 import { useRouter } from 'next/navigation';
 
-// Firebase imports
-import { doc, getDoc } from 'firebase/firestore';
+// --- FIREBASE & UTILS IMPORTS ---
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword,
   updateProfile 
 } from 'firebase/auth';
-import { setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '@/app/lib/firebase-config';
-
-// Cookie utilities for session persistence
 import { 
   saveUserToCookies, 
   getUserFromCookies, 
   clearUserCookies 
 } from '@/app/lib/auth-cookies';
 
-// ============================================================================
-// SHARED COMPONENTS
-// ============================================================================
+// --- THEME CONSTANTS ---
+const THEME = {
+  acid: '#D9FF00', // Primary Accent
+  cyan: '#00F0FF', // Secondary Accent
+  void: '#050505',
+  dark: '#0A0A0A',
+};
 
-// Enhanced Medical floating particles background
-function MedicalParticles() {
+// --- VISUAL COMPONENTS ---
+
+const NoiseOverlay = () => (
+  <div className="fixed inset-0 pointer-events-none z-0 opacity-[0.04] mix-blend-overlay"
+       style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='1'/%3E%3C/svg%3E")` }} 
+  />
+);
+
+const MedicalParticles = () => {
   const [particles, setParticles] = useState([]);
 
   useEffect(() => {
     const newParticles = [];
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < 40; i++) {
       newParticles.push({
         id: i,
         initialX: Math.random() * 100,
         initialY: Math.random() * 100,
-        animateX: Math.random() * 100,
-        animateY: Math.random() * 100,
-        duration: Math.random() * 40 + 30,
-        delay: Math.random() * 15,
-        size: Math.random() * 3 + 1,
-        opacity: Math.random() * 0.6 + 0.2,
+        duration: Math.random() * 20 + 10,
+        delay: Math.random() * 5,
+        size: Math.random() * 4 + 1,
+        opacity: Math.random() * 0.5 + 0.1,
       });
     }
     setParticles(newParticles);
   }, []);
 
-  if (particles.length === 0) {
-    return <div className="absolute inset-0 overflow-hidden" />;
-  }
-
   return (
-    <div className="absolute inset-0 overflow-hidden">
-      {particles.map((particle) => (
+    <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+      {particles.map((p) => (
         <motion.div
-          key={particle.id}
+          key={p.id}
           className="absolute rounded-full"
           style={{
-            width: particle.size + 'px',
-            height: particle.size + 'px',
-            background: `linear-gradient(45deg, rgba(59, 130, 246, ${particle.opacity}), rgba(147, 51, 234, ${particle.opacity * 0.7}))`,
-            left: particle.initialX + '%',
-            top: particle.initialY + '%',
+            width: p.size,
+            height: p.size,
+            background: `linear-gradient(45deg, ${THEME.acid}, ${THEME.cyan})`,
+            left: `${p.initialX}%`,
+            top: `${p.initialY}%`,
+            opacity: p.opacity
           }}
           animate={{
-            x: [(particle.animateX - particle.initialX) + 'vw',
-                 (particle.initialX - particle.animateX) + 'vw',
-                (particle.animateX - particle.initialX) + 'vw'],
-            y: [(particle.animateY - particle.initialY) + 'vh',
-                (particle.initialY - particle.animateY) + 'vh',
-                 (particle.animateY - particle.initialY) + 'vh'],
-            scale: [1, 1.3, 1, 0.7, 1],
-            opacity: [particle.opacity, particle.opacity * 1.5, particle.opacity * 0.8, particle.opacity * 1.2, particle.opacity],
+            y: [0, -100],
+            opacity: [0, p.opacity, 0]
           }}
           transition={{
-            duration: particle.duration,
+            duration: p.duration,
             repeat: Infinity,
             ease: "linear",
-            delay: particle.delay,
+            delay: p.delay
           }}
         />
       ))}
     </div>
   );
-}
+};
 
-// Loading Screen Component
-function LoadingScreen() {
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-slate-900 to-black relative overflow-hidden flex items-center justify-center">
-      <div className="absolute inset-0">
-        <MedicalParticles />
-      </div>
-      
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="relative z-10 text-center"
-      >
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ delay: 0.2, duration: 0.5 }}
-          className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center"
-        >
-          <Stethoscope className="w-12 h-12 text-white" />
-        </motion.div>
-        
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-          className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-6"
-        />
-        
-        <motion.h2 
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="text-2xl font-bold text-white mb-2"
-        >
-          Prompt Biotics
-        </motion.h2>
-        
-        <motion.p 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
-          className="text-gray-400 text-lg"
-        >
-          Loading your health profile...
-        </motion.p>
-        
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.6 }}
-          className="flex items-center justify-center gap-1 mt-4"
-        >
-          <motion.div
-            animate={{ scale: [1, 1.2, 1] }}
-            transition={{ duration: 1, repeat: Infinity, delay: 0 }}
-            className="w-2 h-2 bg-blue-500 rounded-full"
-          />
-          <motion.div
-            animate={{ scale: [1, 1.2, 1] }}
-            transition={{ duration: 1, repeat: Infinity, delay: 0.2 }}
-            className="w-2 h-2 bg-blue-500 rounded-full"
-          />
-          <motion.div
-            animate={{ scale: [1, 1.2, 1] }}
-            transition={{ duration: 1, repeat: Infinity, delay: 0.4 }}
-            className="w-2 h-2 bg-blue-500 rounded-full"
-          />
-        </motion.div>
-      </motion.div>
+// --- FORM UI COMPONENTS ---
+
+const InputField = ({ label, icon: Icon, error, ...props }) => (
+  <div className="space-y-2">
+    <label className="text-[10px] font-mono tracking-widest text-gray-500 uppercase flex items-center gap-2">
+      {Icon && <Icon className="w-3 h-3 text-[#D9FF00]" />} {label}
+    </label>
+    <div className="relative group">
+      {/* FIXED: pointer-events-none prevents clicks from being blocked */}
+      <div className="absolute inset-0 bg-gradient-to-r from-[#D9FF00] to-transparent opacity-0 group-focus-within:opacity-10 transition-opacity rounded-lg blur-sm pointer-events-none" />
+      <input 
+        className={`relative z-10 w-full bg-[#111] border ${error ? 'border-red-500' : 'border-[#333]'} text-white px-4 py-3 rounded-lg font-mono text-sm focus:outline-none focus:border-[#D9FF00] transition-colors placeholder:text-gray-700`}
+        {...props} 
+      />
     </div>
-  );
-}
+    {error && <span className="text-xs text-red-400 font-mono">{error}</span>}
+  </div>
+);
 
-// ============================================================================
-// AUTHENTICATION COMPONENT
-// ============================================================================
+const SelectField = ({ label, icon: Icon, options, ...props }) => (
+  <div className="space-y-2">
+    <label className="text-[10px] font-mono tracking-widest text-gray-500 uppercase flex items-center gap-2">
+      {Icon && <Icon className="w-3 h-3 text-[#00F0FF]" />} {label}
+    </label>
+    <select 
+      className="w-full bg-[#111] border border-[#333] text-white px-4 py-3 rounded-lg font-mono text-sm focus:outline-none focus:border-[#00F0FF] transition-colors appearance-none cursor-pointer"
+      {...props}
+    >
+      <option value="">SELECT_OPTION...</option>
+      {options.map(opt => (
+        <option key={opt.value} value={opt.value}>{opt.label}</option>
+      ))}
+    </select>
+  </div>
+);
 
-function AuthenticationFlow({ onAuthComplete }) {
+const AcidButton = ({ children, onClick, loading, disabled, variant = 'primary', className = "" }) => (
+  <motion.button
+    whileHover={{ scale: 1.01 }}
+    whileTap={{ scale: 0.99 }}
+    onClick={onClick}
+    disabled={loading || disabled}
+    type={onClick ? "button" : "submit"} // Auto-detect type
+    className={`
+      w-full py-4 rounded-lg font-mono text-xs font-bold uppercase tracking-widest transition-all
+      flex items-center justify-center gap-2
+      ${variant === 'primary' 
+        ? 'bg-[#D9FF00] text-black hover:bg-white hover:shadow-[0_0_20px_rgba(217,255,0,0.3)]' 
+        : 'bg-transparent border border-[#333] text-gray-400 hover:border-white hover:text-white'}
+      ${(loading || disabled) ? 'opacity-50 cursor-not-allowed' : ''}
+      ${className}
+    `}
+  >
+    {loading ? <Loader2 className="animate-spin w-4 h-4" /> : children}
+  </motion.button>
+);
+
+// --- AUTHENTICATION FLOW (FIREBASE INTEGRATED) ---
+
+const AuthenticationFlow = ({ onAuthComplete }) => {
   const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  
+  // Form State
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    confirmPassword: ''
+  });
 
-  const handleLogin = async (e) => {
+  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+
+  const handleAuth = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-  
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      
-      // Get user data from Firestore
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      const userData = userDoc.data();
-      
-      const userInfo = { 
-        uid: user.uid,
-        name: userData?.name || user.displayName || email.split('@')[0], 
-        email: user.email 
-      };
-  
-      // Save UID to cookies
-      saveUserToCookies(user.uid);
-      
-      onAuthComplete(userInfo);
-    } catch (error) {
-      console.error('Login error:', error);
-      
-      switch (error.code) {
-        case 'auth/user-not-found':
-        case 'auth/wrong-password':
-        case 'auth/invalid-credential':
-          setError('Invalid email or password');
-          break;
-        case 'auth/too-many-requests':
-          setError('Too many failed attempts. Please try again later');
-          break;
-        case 'auth/network-request-failed':
-          setError('Network error. Please check your connection');
-          break;
-        default:
-          setError('Login failed. Please try again');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSignup = async (e) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-  
-    // Validation
-    if (!name || !email || !password || !confirmPassword) {
-      setError('Please fill in all fields');
-      setLoading(false);
-      return;
-    }
-
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
-      setLoading(false);
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
-      setLoading(false);
-      return;
-    }
 
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
+      if (isLogin) {
+        // --- LOGIN LOGIC ---
+        const userCredential = await signInWithEmailAndPassword(auth, formData.email, formData.password);
+        const user = userCredential.user;
+        
+        // Fetch extra data from Firestore
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        const userData = userDoc.data();
+        
+        const userInfo = { 
+          uid: user.uid,
+          name: userData?.name || user.displayName || formData.email.split('@')[0], 
+          email: user.email,
+          surveyCompleted: userData?.surveyCompleted || false,
+          surveyData: userData?.surveyData || null
+        };
+    
+        saveUserToCookies(user.uid);
+        onAuthComplete(userInfo);
 
-      await updateProfile(user, { displayName: name });
-
-      await setDoc(doc(db, 'users', user.uid), {
-        name: name,
-        email: email,
-        createdAt: new Date().toISOString(),
-        surveyCompleted: false
-      });
-
-      saveUserToCookies(user.uid);
-
-      onAuthComplete({ 
-        uid: user.uid,
-        name: name, 
-        email: email 
-      });
-    } catch (error) {
-      console.error('Signup error:', error);
-      if (error.code === 'auth/email-already-in-use') {
-        setError('Email already in use');
       } else {
-        setError('Failed to create account. Please try again.');
+        // --- SIGNUP LOGIC ---
+        // Validation
+        if (formData.password !== formData.confirmPassword) throw new Error("Passwords do not match");
+        if (formData.password.length < 6) throw new Error("Password must be 6+ chars");
+
+        const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+        const user = userCredential.user;
+
+        await updateProfile(user, { displayName: formData.name });
+
+        // Initialize User Doc
+        await setDoc(doc(db, 'users', user.uid), {
+          name: formData.name,
+          email: formData.email,
+          createdAt: new Date().toISOString(),
+          surveyCompleted: false
+        });
+
+        saveUserToCookies(user.uid);
+        
+        onAuthComplete({ 
+          uid: user.uid,
+          name: formData.name, 
+          email: formData.email,
+          surveyCompleted: false 
+        });
       }
+    } catch (err) {
+      console.error("Auth Error:", err);
+      // Map Firebase errors to UI messages
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') setError("INVALID CREDENTIALS");
+      else if (err.code === 'auth/email-already-in-use') setError("EMAIL ALREADY REGISTERED");
+      else if (err.code === 'auth/too-many-requests') setError("TOO MANY ATTEMPTS. PAUSE.");
+      else setError(err.message.replace('Firebase:', '').toUpperCase());
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-slate-900 to-black relative overflow-hidden flex items-center justify-center">
-      <div className="absolute inset-0">
-        <MedicalParticles />
-      </div>
-
-      <motion.div
-        initial={{ opacity: 0, y: 30, scale: 0.95 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
-        className="relative z-10 w-full max-w-md mx-4"
+    <div className="min-h-screen flex items-center justify-center relative z-10 px-4">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-md"
       >
-        <div className="bg-gradient-to-br from-slate-800/90 to-slate-900/90 backdrop-blur-xl border border-slate-700/60 rounded-2xl shadow-2xl p-8">
-          {/* Logo and Header */}
-          <div className="text-center mb-8">
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.2, duration: 0.5 }}
-              className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center"
-            >
-              <Stethoscope className="w-10 h-10 text-white" />
-            </motion.div>
-            <h1 className="text-2xl font-bold text-white mb-2">Prompt Biotics</h1>
-            <p className="text-sm text-gray-400">Advanced Medical Decision Support</p>
+        <div className="mb-8 text-center">
+          <div className="w-20 h-20 mx-auto mb-6 bg-[#D9FF00]/5 border border-[#D9FF00]/20 rounded-full flex items-center justify-center relative group">
+             <div className="absolute inset-0 border border-[#D9FF00] rounded-full animate-ping opacity-20" />
+             <Stethoscope className="w-8 h-8 text-[#D9FF00]" />
           </div>
+          <h1 className="text-3xl font-bold text-white mb-1 tracking-tighter">PROMPT_BIOTICS</h1>
+          <p className="text-gray-500 font-mono text-[10px] tracking-widest">CLINICAL DECISION SUPPORT SYSTEM</p>
+        </div>
 
-          {/* Tab Switcher */}
-          <div className="flex gap-2 mb-6 p-1 bg-slate-900/60 rounded-xl">
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+        <div className="bg-[#0A0A0A]/90 backdrop-blur-xl border border-[#222] p-8 rounded-2xl relative overflow-hidden shadow-2xl">
+          <div className="absolute top-0 w-full h-1 bg-gradient-to-r from-[#D9FF00] to-transparent" />
+          
+          <div className="flex gap-4 mb-8 bg-[#111] p-1 rounded-lg">
+            <button 
               onClick={() => { setIsLogin(true); setError(''); }}
-              className={`flex-1 py-3 rounded-lg font-medium transition-all duration-300 ${
-                isLogin 
-                  ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg' 
-                  : 'text-gray-400 hover:text-white'
-              }`}
+              className={`flex-1 py-2 rounded text-[10px] font-mono font-bold tracking-widest transition-all ${isLogin ? 'bg-[#222] text-[#D9FF00] shadow' : 'text-gray-600 hover:text-white'}`}
             >
-              Sign In
-            </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              TERMINAL_ACCESS
+            </button>
+            <button 
               onClick={() => { setIsLogin(false); setError(''); }}
-              className={`flex-1 py-3 rounded-lg font-medium transition-all duration-300 ${
-                !isLogin 
-                  ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg' 
-                  : 'text-gray-400 hover:text-white'
-              }`}
+              className={`flex-1 py-2 rounded text-[10px] font-mono font-bold tracking-widest transition-all ${!isLogin ? 'bg-[#222] text-[#D9FF00] shadow' : 'text-gray-600 hover:text-white'}`}
             >
-              Sign Up
-            </motion.button>
+              NEW_PROFILE
+            </button>
           </div>
 
-          {/* Error Message */}
-          <AnimatePresence>
+          <AnimatePresence mode="wait">
             {error && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
+              <motion.div 
+                initial={{ opacity: 0, y: -10 }} 
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="mb-4 p-3 bg-red-500/20 border border-red-500/40 rounded-lg text-red-400 text-sm flex items-center gap-2"
+                exit={{ opacity: 0 }}
+                className="mb-6 p-3 bg-red-500/10 border border-red-500/30 rounded text-red-400 text-xs font-mono flex items-center gap-2"
               >
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                {error}
+                <AlertCircle className="w-4 h-4" /> {error}
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* Forms */}
-          <AnimatePresence mode="wait">
-            {isLogin ? (
-              <motion.form
-                key="login"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                transition={{ duration: 0.3 }}
-                onSubmit={handleLogin}
-                className="space-y-4"
-              >
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Email Address</label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="your@email.com"
-                    required
-                    className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-300"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Password</label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter your password"
-                    required
-                    className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-300"
-                  />
-                </div>
-
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-medium rounded-xl hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Signing In...
-                    </>
-                  ) : (
-                    'Sign In'
-                  )}
-                </motion.button>
-              </motion.form>
-            ) : (
-              <motion.form
-                key="signup"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.3 }}
-                onSubmit={handleSignup}
-                className="space-y-4"
-              >
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Full Name</label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="John Doe"
-                    required
-                    className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-300"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Email Address</label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="your@email.com"
-                    required
-                    className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-300"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Password</label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Minimum 6 characters"
-                    required
-                    className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-300"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Confirm Password</label>
-                  <input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Re-enter password"
-                    required
-                    className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-300"
-                  />
-                </div>
-
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-medium rounded-xl hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Creating Account...
-                    </>
-                  ) : (
-                    'Create Account'
-                  )}
-                </motion.button>
-              </motion.form>
+          <form onSubmit={handleAuth} className="space-y-5">
+            {!isLogin && (
+              <InputField 
+                label="FULL NAME" 
+                name="name"
+                icon={User}
+                placeholder="SARVAGYA SINGH" 
+                value={formData.name}
+                onChange={handleChange}
+                required
+              />
             )}
-          </AnimatePresence>
+            <InputField 
+              label="EMAIL ADDRESS" 
+              name="email"
+              type="email"
+              icon={FileText}
+              placeholder="RESEARCHER@LAB.EDU" 
+              value={formData.email}
+              onChange={handleChange}
+              required
+            />
+            <InputField 
+              label="PASSWORD" 
+              name="password"
+              type="password"
+              icon={ShieldAlert}
+              placeholder="••••••••••••" 
+              value={formData.password}
+              onChange={handleChange}
+              required
+            />
+            {!isLogin && (
+               <InputField 
+                label="CONFIRM PASSWORD" 
+                name="confirmPassword"
+                type="password"
+                icon={ShieldAlert}
+                placeholder="••••••••••••" 
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                required
+              />
+            )}
+            
+            <AcidButton loading={loading}>
+              {isLogin ? 'INITIALIZE SYSTEM' : 'CREATE SEQUENCE'}
+            </AcidButton>
+          </form>
         </div>
       </motion.div>
     </div>
   );
-}
+};
 
-// ============================================================================
-// SURVEY COMPONENTS (Keep all your existing Step components)
-// ============================================================================
+// --- SURVEY STEPS ---
 
-// [Include all your Step components here: Step1BasicInfo, Step2Activity, Step3Medical, Step4Dietary, Step5Habits, Step6Additional]
-// They should remain exactly as you have them
-
-// Step 1: Basic Information
-function Step1BasicInfo({ surveyData, updateSurveyData }) {
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-3 rounded-full bg-blue-500/20 border border-blue-500/40">
-          <User className="w-6 h-6 text-blue-400" />
-        </div>
-        <h2 className="text-2xl font-bold text-white">Basic Information</h2>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            Age <span className="text-red-400">*</span>
-          </label>
-          <input
-            type="number"
-            value={surveyData.age || ''}
-            onChange={(e) => updateSurveyData('age', e.target.value)}
-            placeholder="Years"
-            min="1"
-            max="120"
-            className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-300"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            Gender <span className="text-red-400">*</span>
-          </label>
-          <select
-            value={surveyData.gender || ''}
-            onChange={(e) => updateSurveyData('gender', e.target.value)}
-            className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-300"
-          >
-            <option value="">Select</option>
-            <option value="male">Male</option>
-            <option value="female">Female</option>
-            <option value="other">Other</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            Height (cm) <span className="text-red-400">*</span>
-          </label>
-          <input
-            type="number"
-            value={surveyData.height || ''}
-            onChange={(e) => updateSurveyData('height', e.target.value)}
-            placeholder="170"
-            min="50"
-            max="250"
-            className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-300"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            Weight (kg) <span className="text-red-400">*</span>
-          </label>
-          <input
-            type="number"
-            value={surveyData.weight || ''}
-            onChange={(e) => updateSurveyData('weight', e.target.value)}
-            placeholder="70"
-            min="20"
-            max="300"
-            className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-300"
-          />
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">Target Weight Goal</label>
-        <select
-          value={surveyData.weightGoal || ''}
-          onChange={(e) => updateSurveyData('weightGoal', e.target.value)}
-          className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-300"
-        >
-          <option value="">Select goal</option>
-          <option value="lose">Lose Weight</option>
-          <option value="maintain">Maintain Weight</option>
-          <option value="gain">Gain Weight</option>
-        </select>
-      </div>
+const Step1Basic = ({ data, update }) => (
+  <div className="space-y-6 animate-in slide-in-from-right duration-500">
+    <div className="grid grid-cols-2 gap-4">
+      <InputField label="AGE" type="number" value={data.age} onChange={e => update('age', e.target.value)} placeholder="YEARS" />
+      <SelectField 
+        label="GENDER" 
+        value={data.gender} 
+        onChange={e => update('gender', e.target.value)}
+        options={[
+          {value: 'male', label: 'MALE'},
+          {value: 'female', label: 'FEMALE'},
+          {value: 'other', label: 'OTHER'}
+        ]}
+      />
     </div>
-  );
-}
-
-// Step 2: Activity & Lifestyle
-function Step2Activity({ surveyData, updateSurveyData }) {
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-3 rounded-full bg-emerald-500/20 border border-emerald-500/40">
-          <Activity className="w-6 h-6 text-emerald-400" />
-        </div>
-        <h2 className="text-2xl font-bold text-white">Activity & Lifestyle</h2>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
-          Activity Level <span className="text-red-400">*</span>
-        </label>
-        <select
-          value={surveyData.activityLevel || ''}
-          onChange={(e) => updateSurveyData('activityLevel', e.target.value)}
-          className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-300"
-        >
-          <option value="">Select</option>
-          <option value="sedentary">Sedentary (little to no exercise)</option>
-          <option value="light">Light (1-3 days/week)</option>
-          <option value="moderate">Moderate (3-5 days/week)</option>
-          <option value="active">Active (6-7 days/week)</option>
-          <option value="veryActive">Very Active (intense daily training)</option>
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">Sleep Duration</label>
-        <select
-          value={surveyData.sleepDuration || ''}
-          onChange={(e) => updateSurveyData('sleepDuration', e.target.value)}
-          className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-300"
-        >
-          <option value="">Select average hours</option>
-          <option value="<5">Less than 5 hours</option>
-          <option value="5-6">5-6 hours</option>
-          <option value="6-7">6-7 hours</option>
-          <option value="7-8">7-8 hours</option>
-          <option value="8+">8+ hours</option>
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">Occupation Type</label>
-        <select
-          value={surveyData.occupationType || ''}
-          onChange={(e) => updateSurveyData('occupationType', e.target.value)}
-          className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-300"
-        >
-          <option value="">Select</option>
-          <option value="desk">Desk Job</option>
-          <option value="standing">Standing/Walking</option>
-          <option value="physical">Physical Labor</option>
-          <option value="mixed">Mixed</option>
-          <option value="student">Student</option>
-          <option value="retired">Retired</option>
-        </select>
-      </div>
+    <div className="grid grid-cols-2 gap-4">
+      <InputField label="HEIGHT (CM)" type="number" value={data.height} onChange={e => update('height', e.target.value)} placeholder="175" />
+      <InputField label="WEIGHT (KG)" type="number" value={data.weight} onChange={e => update('weight', e.target.value)} placeholder="70" />
     </div>
-  );
-}
+    <SelectField 
+        label="WEIGHT GOAL" 
+        icon={Target}
+        value={data.weightGoal} 
+        onChange={e => update('weightGoal', e.target.value)}
+        options={[
+          {value: 'lose', label: 'LOSE WEIGHT'},
+          {value: 'maintain', label: 'MAINTAIN WEIGHT'},
+          {value: 'gain', label: 'GAIN WEIGHT'}
+        ]}
+      />
+  </div>
+);
 
-// Step 3: Medical Conditions
-function Step3Medical({ surveyData, updateSurveyData }) {
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-3 rounded-full bg-red-500/20 border border-red-500/40">
-          <Stethoscope className="w-6 h-6 text-red-400" />
-        </div>
-        <h2 className="text-2xl font-bold text-white">Medical History</h2>
-      </div>
+const Step2Activity = ({ data, update }) => (
+  <div className="space-y-6 animate-in slide-in-from-right duration-500">
+    <SelectField 
+      label="ACTIVITY LEVEL" 
+      icon={Activity}
+      value={data.activityLevel} 
+      onChange={e => update('activityLevel', e.target.value)}
+      options={[
+        {value: 'sedentary', label: 'SEDENTARY'},
+        {value: 'light', label: 'LIGHT (1-3 days)'},
+        {value: 'moderate', label: 'MODERATE (3-5 days)'},
+        {value: 'active', label: 'ACTIVE (6-7 days)'},
+        {value: 'athlete', label: 'ATHLETE (2x/day)'},
+      ]}
+    />
+    <SelectField 
+      label="SLEEP DURATION" 
+      icon={Moon}
+      value={data.sleepDuration} 
+      onChange={e => update('sleepDuration', e.target.value)}
+      options={[
+        {value: '<5', label: '< 5 HOURS'},
+        {value: '5-6', label: '5-6 HOURS'},
+        {value: '7-8', label: '7-8 HOURS (OPTIMAL)'},
+        {value: '>8', label: '> 8 HOURS'},
+      ]}
+    />
+     <SelectField 
+      label="OCCUPATION TYPE" 
+      icon={User}
+      value={data.occupation} 
+      onChange={e => update('occupation', e.target.value)}
+      options={[
+        {value: 'desk', label: 'DESK JOB'},
+        {value: 'standing', label: 'STANDING/WALKING'},
+        {value: 'physical', label: 'HEAVY PHYSICAL LABOR'},
+      ]}
+    />
+  </div>
+);
 
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-3">Existing Medical Conditions</label>
-        <div className="space-y-2">
-          {['Diabetes', 'Hypertension', 'Heart Disease', 'Thyroid Issues', 'PCOS', 'None'].map(condition => (
-            <label key={condition} className="flex items-center gap-3 p-3 bg-slate-900/40 rounded-lg hover:bg-slate-900/60 cursor-pointer transition-all">
-              <input
-                type="checkbox"
-                checked={(surveyData.medicalConditions || []).includes(condition)}
-                onChange={(e) => {
-                  const current = surveyData.medicalConditions || [];
-                  if (e.target.checked) {
-                    updateSurveyData('medicalConditions', [...current, condition]);
-                  } else {
-                    updateSurveyData('medicalConditions', current.filter(c => c !== condition));
-                  }
-                }}
-                className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-blue-500 focus:ring-2 focus:ring-blue-500/20"
-              />
-              <span className="text-sm text-gray-300">{condition}</span>
-            </label>
-          ))}
-        </div>
-      </div>
+const Step3Medical = ({ data, update }) => (
+  <div className="space-y-6 animate-in slide-in-from-right duration-500">
+     <div className="space-y-3">
+       <label className="text-[10px] font-mono tracking-widest text-gray-500 uppercase flex items-center gap-2">
+          <span className="w-1 h-1 bg-[#FF3300]" /> DETECTED CONDITIONS
+       </label>
+       <div className="grid grid-cols-2 gap-3">
+         {['Diabetes (T2DM)', 'Hypertension', 'Heart Disease', 'Thyroid', 'PCOS', 'None'].map(cond => (
+           <label key={cond} className={`
+              flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all
+              ${data.conditions.includes(cond) 
+                ? 'bg-[#FF3300]/10 border-[#FF3300] text-[#FF3300]' 
+                : 'bg-[#111] border-[#333] text-gray-400 hover:border-gray-500'}
+           `}>
+             <input 
+               type="checkbox" 
+               className="hidden"
+               checked={data.conditions.includes(cond)}
+               onChange={(e) => {
+                 if(e.target.checked) update('conditions', [...data.conditions, cond]);
+                 else update('conditions', data.conditions.filter(c => c !== cond));
+               }}
+             />
+             <span className="text-xs font-mono uppercase">{cond}</span>
+           </label>
+         ))}
+       </div>
+     </div>
+     <div className="space-y-2">
+       <label className="text-[10px] font-mono tracking-widest text-gray-500 uppercase flex items-center gap-2">
+         <AlertCircle className="w-3 h-3 text-[#FF3300]" /> ALLERGIES
+       </label>
+       <textarea 
+         className="w-full bg-[#111] border border-[#333] text-white px-4 py-3 rounded-lg font-mono text-sm focus:outline-none focus:border-[#FF3300] transition-colors resize-none h-20"
+         placeholder="NUTS, DAIRY, SHELLFISH..."
+         value={data.allergies}
+         onChange={e => update('allergies', e.target.value)}
+       />
+     </div>
+  </div>
+);
 
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">Food Allergies or Intolerances</label>
-        <textarea
-          value={surveyData.allergies || ''}
-          onChange={(e) => updateSurveyData('allergies', e.target.value)}
-          placeholder="List any food allergies or intolerances (e.g., nuts, dairy, gluten)"
-          rows={3}
-          className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-300 resize-none"
-        />
-      </div>
+const Step4Dietary = ({ data, update }) => (
+  <div className="space-y-6 animate-in slide-in-from-right duration-500">
+     <SelectField 
+      label="DIETARY PATTERN" 
+      icon={Utensils}
+      value={data.dietPattern} 
+      onChange={e => update('dietPattern', e.target.value)}
+      options={[
+        {value: 'omnivore', label: 'OMNIVORE'},
+        {value: 'vegetarian', label: 'VEGETARIAN'},
+        {value: 'vegan', label: 'VEGAN'},
+        {value: 'keto', label: 'KETOGENIC'},
+        {value: 'paleo', label: 'PALEO'},
+        {value: 'mediterranean', label: 'MEDITERRANEAN'},
+      ]}
+    />
+     <SelectField 
+      label="MEAL FREQUENCY" 
+      icon={Scale}
+      value={data.mealsPerDay} 
+      onChange={e => update('mealsPerDay', e.target.value)}
+      options={[
+        {value: '2', label: '2 MEALS (IF)'},
+        {value: '3', label: '3 MEALS (Standard)'},
+        {value: '4-5', label: '4-5 MEALS'},
+        {value: '6', label: '6+ MEALS'},
+      ]}
+    />
+    <div className="space-y-2">
+       <label className="text-[10px] font-mono tracking-widest text-gray-500 uppercase flex items-center gap-2">
+         <Info className="w-3 h-3 text-[#00F0FF]" /> FOOD DISLIKES
+       </label>
+       <textarea 
+         className="w-full bg-[#111] border border-[#333] text-white px-4 py-3 rounded-lg font-mono text-sm focus:outline-none focus:border-[#00F0FF] transition-colors resize-none h-20"
+         placeholder="MUSHROOMS, CILANTRO..."
+         value={data.dislikes}
+         onChange={e => update('dislikes', e.target.value)}
+       />
+     </div>
+  </div>
+);
+
+const Step5Habits = ({ data, update }) => (
+  <div className="space-y-6 animate-in slide-in-from-right duration-500">
+    <div className="grid grid-cols-2 gap-4">
+      <SelectField 
+        label="WATER INTAKE" 
+        icon={Droplets}
+        value={data.waterIntake} 
+        onChange={e => update('waterIntake', e.target.value)}
+        options={[
+          {value: '<1', label: '< 1 LITER'},
+          {value: '1-2', label: '1-2 LITERS'},
+          {value: '2-3', label: '2-3 LITERS'},
+          {value: '3+', label: '3+ LITERS'},
+        ]}
+      />
+      <SelectField 
+        label="CAFFEINE" 
+        icon={Coffee}
+        value={data.caffeine} 
+        onChange={e => update('caffeine', e.target.value)}
+        options={[
+          {value: 'none', label: 'NONE'},
+          {value: '1-2', label: '1-2 CUPS'},
+          {value: '3-4', label: '3-4 CUPS'},
+          {value: '5+', label: '5+ CUPS'},
+        ]}
+      />
     </div>
-  );
-}
-
-// Step 4: Dietary Preferences
-function Step4Dietary({ surveyData, updateSurveyData }) {
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-3 rounded-full bg-orange-500/20 border border-orange-500/40">
-          <Utensils className="w-6 h-6 text-orange-400" />
-        </div>
-        <h2 className="text-2xl font-bold text-white">Dietary Preferences</h2>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
-          Diet Pattern <span className="text-red-400">*</span>
-        </label>
-        <select
-          value={surveyData.dietPattern || ''}
-          onChange={(e) => updateSurveyData('dietPattern', e.target.value)}
-          className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-300"
-        >
-          <option value="">Select</option>
-          <option value="omnivore">Omnivore (No restrictions)</option>
-          <option value="vegetarian">Vegetarian</option>
-          <option value="vegan">Vegan</option>
-          <option value="pescatarian">Pescatarian</option>
-          <option value="keto">Keto</option>
-          <option value="paleo">Paleo</option>
-          <option value="mediterranean">Mediterranean</option>
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">Meals Per Day</label>
-        <select
-          value={surveyData.mealsPerDay || ''}
-          onChange={(e) => updateSurveyData('mealsPerDay', e.target.value)}
-          className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-300"
-        >
-          <option value="">Select</option>
-          <option value="2">2 meals</option>
-          <option value="3">3 meals</option>
-          <option value="4">4-5 meals</option>
-          <option value="6+">6+ small meals</option>
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">Food Dislikes</label>
-        <textarea
-          value={surveyData.foodDislikes || ''}
-          onChange={(e) => updateSurveyData('foodDislikes', e.target.value)}
-          placeholder="List foods you dislike or prefer to avoid"
-          rows={3}
-          className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-300 resize-none"
-        />
-      </div>
+    <div className="grid grid-cols-2 gap-4">
+      <SelectField 
+        label="ALCOHOL" 
+        icon={Wine}
+        value={data.alcohol} 
+        onChange={e => update('alcohol', e.target.value)}
+        options={[
+          {value: 'none', label: 'NONE'},
+          {value: 'occasional', label: 'OCCASIONAL'},
+          {value: 'moderate', label: 'MODERATE'},
+          {value: 'frequent', label: 'FREQUENT'},
+        ]}
+      />
+       <SelectField 
+        label="COOKING" 
+        icon={Utensils}
+        value={data.cooking} 
+        onChange={e => update('cooking', e.target.value)}
+        options={[
+          {value: 'daily', label: 'DAILY'},
+          {value: 'often', label: 'OFTEN'},
+          {value: 'rarely', label: 'RARELY'},
+        ]}
+      />
     </div>
-  );
-}
+  </div>
+);
 
-// Step 5: Current Habits
-function Step5Habits({ surveyData, updateSurveyData }) {
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-3 rounded-full bg-purple-500/20 border border-purple-500/40">
-          <Coffee className="w-6 h-6 text-purple-400" />
-        </div>
-        <h2 className="text-2xl font-bold text-white">Current Habits</h2>
-      </div>
+const Step6Additional = ({ data, update }) => (
+  <div className="space-y-6 animate-in slide-in-from-right duration-500">
+    <div className="space-y-2">
+       <label className="text-[10px] font-mono tracking-widest text-gray-500 uppercase flex items-center gap-2">
+         <Pill className="w-3 h-3 text-[#D9FF00]" /> CURRENT MEDICATIONS LIST
+       </label>
+       <textarea 
+         className="w-full bg-[#111] border border-[#333] text-white px-4 py-3 rounded-lg font-mono text-sm focus:outline-none focus:border-[#D9FF00] transition-colors resize-none h-24"
+         placeholder="LISINOPRIL 10MG, METFORMIN 500MG..."
+         value={data.medications}
+         onChange={e => update('medications', e.target.value)}
+       />
+     </div>
+     <SelectField 
+        label="STRESS LEVEL" 
+        icon={Zap}
+        value={data.stress} 
+        onChange={e => update('stress', e.target.value)}
+        options={[
+          {value: 'low', label: 'LOW'},
+          {value: 'moderate', label: 'MODERATE'},
+          {value: 'high', label: 'HIGH'},
+          {value: 'severe', label: 'SEVERE'},
+        ]}
+      />
+      <div className="space-y-2">
+       <label className="text-[10px] font-mono tracking-widest text-gray-500 uppercase flex items-center gap-2">
+         <Target className="w-3 h-3 text-[#00F0FF]" /> SPECIFIC HEALTH GOALS
+       </label>
+       <textarea 
+         className="w-full bg-[#111] border border-[#333] text-white px-4 py-3 rounded-lg font-mono text-sm focus:outline-none focus:border-[#00F0FF] transition-colors resize-none h-24"
+         placeholder="REDUCE A1C, LOWER BLOOD PRESSURE..."
+         value={data.healthGoals}
+         onChange={e => update('healthGoals', e.target.value)}
+       />
+     </div>
+  </div>
+);
 
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">Water Intake (Daily)</label>
-        <select
-          value={surveyData.waterIntake || ''}
-          onChange={(e) => updateSurveyData('waterIntake', e.target.value)}
-          className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-300"
-        >
-          <option value="">Select liters</option>
-          <option value="<1">Less than 1 liter</option>
-          <option value="1-2">1-2 liters</option>
-          <option value="2-3">2-3 liters</option>
-          <option value="3+">3+ liters</option>
-        </select>
-      </div>
+// --- MEDICAL SURVEY WRAPPER ---
 
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">Alcohol Consumption</label>
-        <select
-          value={surveyData.alcoholConsumption || ''}
-          onChange={(e) => updateSurveyData('alcoholConsumption', e.target.value)}
-          className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-300"
-        >
-          <option value="">Select</option>
-          <option value="none">None</option>
-          <option value="occasional">Occasional (1-2/week)</option>
-          <option value="moderate">Moderate (3-4/week)</option>
-          <option value="frequent">Frequent (daily)</option>
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">Caffeine Intake (Daily)</label>
-        <select
-          value={surveyData.caffeineIntake || ''}
-          onChange={(e) => updateSurveyData('caffeineIntake', e.target.value)}
-          className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-300"
-        >
-          <option value="">Select cups</option>
-          <option value="0">None</option>
-          <option value="1-2">1-2 cups</option>
-          <option value="3-4">3-4 cups</option>
-          <option value="5+">5+ cups</option>
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">Cooking Frequency</label>
-        <select
-          value={surveyData.cookingFrequency || ''}
-          onChange={(e) => updateSurveyData('cookingFrequency', e.target.value)}
-          className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-300"
-        >
-          <option value="">Select</option>
-          <option value="daily">Daily</option>
-          <option value="often">Often (4-6 times/week)</option>
-          <option value="sometimes">Sometimes (2-3 times/week)</option>
-          <option value="rarely">Rarely</option>
-          <option value="never">Never</option>
-        </select>
-      </div>
-    </div>
-  );
-}
-
-// Step 6: Additional Information
-function Step6Additional({ surveyData, updateSurveyData }) {
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-3 rounded-full bg-amber-500/20 border border-amber-500/40">
-          <Target className="w-6 h-6 text-amber-400" />
-        </div>
-        <h2 className="text-2xl font-bold text-white">Additional Information</h2>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">Current Medications</label>
-        <textarea
-          value={surveyData.medications || ''}
-          onChange={(e) => updateSurveyData('medications', e.target.value)}
-          placeholder="List any medications you're currently taking"
-          rows={3}
-          className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-300 resize-none"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">Stress Level</label>
-        <select
-          value={surveyData.stressLevel || ''}
-          onChange={(e) => updateSurveyData('stressLevel', e.target.value)}
-          className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-300"
-        >
-          <option value="">Select</option>
-          <option value="low">Low</option>
-          <option value="moderate">Moderate</option>
-          <option value="high">High</option>
-          <option value="veryHigh">Very High</option>
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">Digestive Issues</label>
-        <textarea
-          value={surveyData.digestiveIssues || ''}
-          onChange={(e) => updateSurveyData('digestiveIssues', e.target.value)}
-          placeholder="Describe any digestive issues or concerns"
-          rows={3}
-          className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-300 resize-none"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">Specific Health Goals</label>
-        <textarea
-          value={surveyData.healthGoals || ''}
-          onChange={(e) => updateSurveyData('healthGoals', e.target.value)}
-          placeholder="What are your main health and nutrition goals?"
-          rows={4}
-          className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-300 resize-none"
-        />
-      </div>
-    </div>
-  );
-}
-
-// ============================================================================
-// MEDICAL SURVEY COMPONENT
-// ============================================================================
-
-function MedicalSurvey({ user, onSurveyComplete, onLogout }) {
-  const [currentStep, setCurrentStep] = useState(1);
+const MedicalSurvey = ({ user, onLogout, onComplete }) => {
+  const [step, setStep] = useState(1);
   const totalSteps = 6;
-  const [surveyData, setSurveyData] = useState({});
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [saving, setSaving] = useState(false);
-  const router = useRouter();
+  
+  // State init
+  const [surveyData, setSurveyData] = useState({
+    age: '', gender: '', height: '', weight: '', weightGoal: '', // Step 1
+    activityLevel: '', sleepDuration: '', occupation: '', // Step 2
+    conditions: [], allergies: '', // Step 3
+    dietPattern: '', mealsPerDay: '', dislikes: '', // Step 4
+    waterIntake: '', caffeine: '', alcohol: '', cooking: '', // Step 5
+    medications: '', stress: '', healthGoals: '' // Step 6
+  });
 
   const updateSurveyData = (field, value) => {
     setSurveyData(prev => ({ ...prev, [field]: value }));
   };
 
-  const validateStep = () => {
-    const requiredFields = {
-      1: ['age', 'gender', 'height', 'weight'],
-      2: ['activityLevel'],
-      3: [],
-      4: ['dietPattern'],
-      5: [],
-      6: []
-    };
-
-    const required = requiredFields[currentStep] || [];
-    for (const field of required) {
-      if (!surveyData[field]) {
-        setError(`Please fill in all required fields`);
-        return false;
-      }
-    }
-    setError('');
-    return true;
-  };
-
-  const nextStep = () => {
-    if (validateStep()) {
-      setCurrentStep(prev => Math.min(prev + 1, totalSteps));
-      window.scrollTo(0, 0);
-    }
-  };
-
-  const prevStep = () => {
-    setError('');
-    setCurrentStep(prev => Math.max(prev - 1, 1));
-    window.scrollTo(0, 0);
+  const handleNext = () => {
+    // Basic validation logic
+    if (step < totalSteps) setStep(s => s + 1);
   };
 
   const handleSubmit = async () => {
-    if (!validateStep()) return;
-    
-    setSaving(true);
+    setLoading(true);
     setError('');
 
     try {
+      // --- FIRESTORE SAVE LOGIC ---
       await updateDoc(doc(db, 'users', user.uid), {
         surveyData: surveyData,
         surveyCompleted: true,
         surveyCompletedAt: new Date().toISOString()
       });
 
-      onSurveyComplete({ ...surveyData, user });
-    } catch (error) {
-      console.error('Error saving survey:', error);
-      setError('Failed to save survey data. Please try again.');
+      // Pass both data and user to complete
+      onComplete({ ...surveyData, user });
+    } catch (err) {
+      console.error("Survey Save Error:", err);
+      setError("FAILED TO UPLOAD CLINICAL DATA. RETRY.");
     } finally {
-      setSaving(false);
+      setLoading(false);
     }
   };
 
-  const progress = (currentStep / totalSteps) * 100;
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-slate-900 to-black relative overflow-hidden">
-      <div className="absolute inset-0">
-        <MedicalParticles />
+    <div className="min-h-screen flex flex-col relative z-10">
+      {/* Header */}
+      <div className="px-6 py-4 bg-[#0A0A0A]/90 backdrop-blur border-b border-[#222] flex justify-between items-center sticky top-0 z-50">
+         <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-full bg-[#D9FF00]/10 flex items-center justify-center font-bold text-[#D9FF00] border border-[#D9FF00]/30">
+               {user.name?.charAt(0) || 'U'}
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-white">{user.name || 'USER'}</h2>
+              <p className="text-[10px] font-mono text-gray-500 uppercase">{user.email}</p>
+            </div>
+         </div>
+         <button onClick={onLogout} className="text-xs font-mono text-gray-500 hover:text-white transition-colors flex items-center gap-2">
+            <LogOut className="w-3 h-3" /> TERMINATE_SESSION
+         </button>
       </div>
 
-      <div className="relative z-10 min-h-screen flex flex-col">
-        {/* Header with User Info */}
-        <div className="p-6 bg-gradient-to-r from-slate-900/95 to-slate-900/90 backdrop-blur-xl border-b border-slate-700/60 shadow-xl">
-          <div className="max-w-4xl mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center font-bold text-white">
-                {user?.name?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || 'U'}
+      <div className="flex-1 flex items-center justify-center p-6">
+        <div className="w-full max-w-3xl">
+           {/* Progress Bar */}
+           <div className="mb-12">
+              <div className="flex justify-between items-end mb-2">
+                 <h1 className="text-3xl font-bold text-white tracking-tight">CLINICAL INTAKE</h1>
+                 <span className="font-mono text-[#D9FF00] text-xl">0{step}/0{totalSteps}</span>
               </div>
-              <div>
-                <h2 className="text-lg font-semibold text-white">{user.name}</h2>
-                <p className="text-sm text-gray-400">{user.email}</p>
+              <div className="h-1 bg-[#222] w-full rounded-full overflow-hidden">
+                 <motion.div 
+                   className="h-full bg-[#D9FF00]"
+                   initial={{ width: 0 }}
+                   animate={{ width: `${(step/totalSteps) * 100}%` }}
+                 />
               </div>
-            </div>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={onLogout}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-800/60 hover:bg-slate-700/60 text-gray-300 rounded-xl transition-all duration-300 border border-slate-700/60"
-            >
-              <LogOut className="w-4 h-4" />
-              Logout
-            </motion.button>
-          </div>
-        </div>
+           </div>
 
-        {/* Survey Content */}
-        <div className="flex-1 p-6 overflow-y-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="max-w-4xl mx-auto"
-          >
-            {/* Header */}
-            <div className="text-center mb-8">
-              <h1 className="text-3xl font-bold text-white mb-3">Medical & Dietary Assessment</h1>
-              <p className="text-gray-400">Please provide detailed information to help us create your personalized diet plan</p>
-            </div>
-
-            {/* Progress Bar */}
-            <div className="mb-8">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-400">Step {currentStep} of {totalSteps}</span>
-                <span className="text-sm text-gray-400">{Math.round(progress)}% Complete</span>
+           {/* Dynamic Step Content */}
+           <div className="bg-[#0A0A0A] border border-[#222] rounded-2xl p-8 md:p-12 relative overflow-hidden min-h-[500px] flex flex-col shadow-2xl">
+              <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
+                 <Database className="w-32 h-32 text-gray-500" />
               </div>
-              <div className="w-full h-2 bg-slate-800/60 rounded-full overflow-hidden">
-                <motion.div
-                  className="h-full bg-gradient-to-r from-blue-500 to-purple-600"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${progress}%` }}
-                  transition={{ duration: 0.5, ease: "easeOut" }}
-                />
+              
+              <div className="flex-1">
+                {error && (
+                   <div className="mb-6 p-3 bg-red-500/10 border border-red-500/30 rounded text-red-400 text-xs font-mono flex items-center gap-2">
+                     <AlertCircle className="w-4 h-4" /> {error}
+                   </div>
+                )}
+                <AnimatePresence mode="wait">
+                  {step === 1 && <Step1Basic key="1" data={surveyData} update={updateSurveyData} />}
+                  {step === 2 && <Step2Activity key="2" data={surveyData} update={updateSurveyData} />}
+                  {step === 3 && <Step3Medical key="3" data={surveyData} update={updateSurveyData} />}
+                  {step === 4 && <Step4Dietary key="4" data={surveyData} update={updateSurveyData} />}
+                  {step === 5 && <Step5Habits key="5" data={surveyData} update={updateSurveyData} />}
+                  {step === 6 && <Step6Additional key="6" data={surveyData} update={updateSurveyData} />}
+                </AnimatePresence>
               </div>
-            </div>
 
-            {/* Error Message */}
-            <AnimatePresence>
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  className="mb-6 p-4 bg-red-500/20 border border-red-500/40 rounded-xl text-red-400 flex items-center gap-2"
-                >
-                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                  {error}
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Step Content */}
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={currentStep}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.3 }}
-                className="bg-gradient-to-br from-slate-800/60 to-slate-800/80 backdrop-blur-xl border border-slate-700/60 rounded-2xl p-8 shadow-xl"
-              >
-                {currentStep === 1 && (
-                  <Step1BasicInfo surveyData={surveyData} updateSurveyData={updateSurveyData} />
-                )}
-                {currentStep === 2 && (
-                  <Step2Activity surveyData={surveyData} updateSurveyData={updateSurveyData} />
-                )}
-                {currentStep === 3 && (
-                  <Step3Medical surveyData={surveyData} updateSurveyData={updateSurveyData} />
-                )}
-                {currentStep === 4 && (
-                  <Step4Dietary surveyData={surveyData} updateSurveyData={updateSurveyData} />
-                )}
-                {currentStep === 5 && (
-                  <Step5Habits surveyData={surveyData} updateSurveyData={updateSurveyData} />
-                )}
-                {currentStep === 6 && (
-                  <Step6Additional surveyData={surveyData} updateSurveyData={updateSurveyData} />
-                )}
-              </motion.div>
-            </AnimatePresence>
-
-            {/* Navigation Buttons */}
-            <div className="flex gap-4 mt-8">
-              {currentStep > 1 && (
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={prevStep}
-                  disabled={saving}
-                  className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-slate-800/60 hover:bg-slate-700/60 text-white rounded-xl transition-all duration-300 border border-slate-700/60 font-medium disabled:opacity-50"
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                  Previous
-                </motion.button>
-              )}
-              {currentStep < totalSteps ? (
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={nextStep}
-                  disabled={saving}
-                  className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-300 font-medium disabled:opacity-50"
-                >
-                  Next Step
-                  <ChevronRight className="w-5 h-5" />
-                </motion.button>
-              ) : (
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleSubmit}
-                  disabled={saving}
-                  className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-emerald-500 to-blue-500 text-white rounded-xl hover:shadow-lg hover:shadow-emerald-500/30 transition-all duration-300 font-medium disabled:opacity-50"
-                >
-                  {saving ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle className="w-5 h-5" />
-                      Complete Survey
-                    </>
-                  )}
-                </motion.button>
-              )}
-            </div>
-          </motion.div>
+              {/* Navigation */}
+              <div className="flex gap-4 mt-12 pt-8 border-t border-[#333]">
+                 <AcidButton 
+                   variant="secondary" 
+                   disabled={step === 1 || loading}
+                   onClick={() => setStep(s => s - 1)}
+                   className="flex-1"
+                 >
+                   <ArrowLeft className="w-4 h-4" /> PREVIOUS
+                 </AcidButton>
+                 
+                 {step < totalSteps ? (
+                   <AcidButton onClick={handleNext} className="flex-1">
+                     NEXT PHASE <ArrowRight className="w-4 h-4" />
+                   </AcidButton>
+                 ) : (
+                   <AcidButton onClick={handleSubmit} loading={loading} className="flex-1">
+                     COMPILE DATASET <CheckCircle2 className="w-4 h-4" />
+                   </AcidButton>
+                 )}
+              </div>
+           </div>
         </div>
       </div>
     </div>
   );
-}
+};
 
-// ============================================================================
-// MAIN APP COMPONENT WITH PROTECTED ROUTES
-// ============================================================================
+// --- LOADING SCREEN ---
 
-function ClinicalCDSSWithAuth() {
-  const [appState, setAppState] = useState('loading'); // 'loading', 'auth', 'survey', 'chat'
+const LoadingScreen = () => (
+  <div className="min-h-screen bg-black flex items-center justify-center relative z-50">
+    <div className="text-center">
+       <div className="w-24 h-24 mx-auto mb-8 relative">
+          <motion.div 
+            className="absolute inset-0 border-t-2 border-[#D9FF00] rounded-full"
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          />
+          <motion.div 
+            className="absolute inset-2 border-t-2 border-[#00F0FF] rounded-full"
+            animate={{ rotate: -360 }}
+            transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+          />
+          <Stethoscope className="absolute inset-0 m-auto w-8 h-8 text-white opacity-50" />
+       </div>
+       <h2 className="text-white font-mono text-sm tracking-widest animate-pulse">INITIALIZING SYSTEM...</h2>
+    </div>
+  </div>
+);
+
+// --- MAIN APP COMPONENT (INTEGRATED) ---
+
+export default function ClinicalCDSS() {
+  const [appState, setAppState] = useState('loading'); // loading, auth, survey, dashboard
   const [currentUser, setCurrentUser] = useState(null);
-  const [surveyData, setSurveyData] = useState(null);
   const router = useRouter();
 
-  // Check for existing session on component mount
+  // --- RESTORE SESSION LOGIC ---
   useEffect(() => {
     const checkAuthState = async () => {
       try {
         const savedUid = getUserFromCookies();
-        
         if (!savedUid) {
           setAppState('auth');
           return;
         }
 
-        // Verify user exists in Firestore
         const userDoc = await getDoc(doc(db, 'users', savedUid));
-        
         if (!userDoc.exists()) {
           clearUserCookies();
           setAppState('auth');
@@ -1167,21 +772,14 @@ function ClinicalCDSSWithAuth() {
         const userInfo = {
           uid: savedUid,
           name: userData.name,
-          email: userData.email
+          email: userData.email,
+          surveyCompleted: userData.surveyCompleted
         };
 
         setCurrentUser(userInfo);
-
-        // Check if survey is completed
-        if (userData.surveyCompleted) {
-          setAppState('chat');
-          setSurveyData(userData.surveyData || {});
-        } else {
-          setAppState('survey');
-        }
+        setAppState(userData.surveyCompleted ? 'dashboard' : 'survey');
       } catch (error) {
-        console.error('Auth check error:', error);
-        clearUserCookies();
+        console.error("Session Restoration Error:", error);
         setAppState('auth');
       }
     };
@@ -1191,70 +789,73 @@ function ClinicalCDSSWithAuth() {
 
   const handleAuthComplete = (user) => {
     setCurrentUser(user);
-    setAppState('survey');
+    setAppState(user.surveyCompleted ? 'dashboard' : 'survey');
   };
 
   const handleSurveyComplete = (data) => {
-    setSurveyData(data);
-    setAppState('chat');
-    // Here you would typically redirect to your chat interface
-    router.push('/chat');
+    setAppState('dashboard');
+    router.push('/chat'); // Redirect if you have a chat route
   };
 
   const handleLogout = () => {
-    if (confirm('Are you sure you want to logout?')) {
-      clearUserCookies();
-      setCurrentUser(null);
-      setSurveyData(null);
-      setAppState('auth');
-    }
+    clearUserCookies();
+    setCurrentUser(null);
+    setAppState('auth');
   };
 
-  // Render appropriate component based on app state
-  if (appState === 'loading') {
-    return <LoadingScreen />;
-  }
-
   return (
-    <AnimatePresence mode="wait">
-      {appState === 'auth' && (
-        <AuthenticationFlow key="auth" onAuthComplete={handleAuthComplete} />
-      )}
-      {appState === 'survey' && currentUser && (
-        <MedicalSurvey 
-          key="survey"
-          user={currentUser} 
-          onSurveyComplete={handleSurveyComplete}
-          onLogout={handleLogout}
-        />
-      )}
-      {appState === 'chat' && (
-        <div className="min-h-screen bg-gradient-to-br from-gray-900 via-slate-900 to-black flex items-center justify-center">
-          <div className="text-center">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-gradient-to-br from-slate-800/60 to-slate-800/80 backdrop-blur-xl border border-slate-700/60 rounded-2xl p-8 shadow-xl"
-            >
-              <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-emerald-500 to-blue-500 rounded-full flex items-center justify-center">
-                <CheckCircle className="w-10 h-10 text-white" />
-              </div>
-              <h2 className="text-2xl font-bold text-white mb-2">Survey Completed!</h2>
-              <p className="text-gray-400 mb-6">Redirecting to chat interface...</p>
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => router.push('/chat')}
-                className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-300"
-              >
-                Go to Chat
-              </motion.button>
-            </motion.div>
-          </div>
-        </div>
-      )}
-    </AnimatePresence>
+    <div className="bg-[#050505] min-h-screen text-white font-sans selection:bg-[#D9FF00] selection:text-black">
+      <NoiseOverlay />
+      <MedicalParticles />
+      
+      <AnimatePresence mode="wait">
+        {appState === 'loading' && (
+          <motion.div key="loading" exit={{ opacity: 0 }}>
+             <LoadingScreen />
+          </motion.div>
+        )}
+
+        {appState === 'auth' && (
+          <motion.div key="auth" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+             <AuthenticationFlow onAuthComplete={handleAuthComplete} />
+          </motion.div>
+        )}
+
+        {appState === 'survey' && currentUser && (
+          <motion.div key="survey" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+             <MedicalSurvey 
+               user={currentUser} 
+               onLogout={handleLogout} 
+               onComplete={handleSurveyComplete} 
+             />
+          </motion.div>
+        )}
+
+        {appState === 'dashboard' && (
+          <motion.div key="dashboard" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
+             <div className="min-h-screen flex items-center justify-center relative z-10 px-4">
+                <div className="bg-[#0A0A0A] border border-[#222] p-12 rounded-2xl text-center max-w-lg shadow-2xl relative overflow-hidden">
+                   <div className="absolute top-0 w-full h-1 bg-gradient-to-r from-[#D9FF00] to-transparent" />
+                   <div className="w-20 h-20 bg-[#D9FF00]/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                      <CheckCircle2 className="w-10 h-10 text-[#D9FF00]" />
+                   </div>
+                   <h2 className="text-3xl font-bold text-white mb-4">PROFILE COMPILED</h2>
+                   <p className="text-gray-400 mb-8 leading-relaxed">
+                     Your clinical baseline has been established. The AI Reasoning Engine is now ready to assist you.
+                   </p>
+                   <div className="space-y-3">
+                      <AcidButton onClick={() => router.push('/chat')}>
+                        LAUNCH CONSOLE
+                      </AcidButton>
+                      <button onClick={handleLogout} className="text-xs font-mono text-gray-500 hover:text-white transition-colors">
+                        CLOSE_SESSION
+                      </button>
+                   </div>
+                </div>
+             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
-
-export default ClinicalCDSSWithAuth;
