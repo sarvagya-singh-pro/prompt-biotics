@@ -388,9 +388,7 @@ export default function App() {
           <span className="hover:text-white cursor-pointer">02. SIMULATION</span>
           <span className="hover:text-white cursor-pointer">03. DATA</span>
         </div>
-        <button className="bg-[#222] text-white px-4 py-1.5 font-mono text-xs hover:bg-[#333]">
-          READ_PDF
-        </button>
+      
       </nav>
 
       <main>
