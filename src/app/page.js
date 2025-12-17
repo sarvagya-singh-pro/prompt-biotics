@@ -1,29 +1,24 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   motion, 
   useScroll, 
   useTransform, 
-  useSpring, 
-  useInView,
-  AnimatePresence,
-  useMotionValue
 } from 'framer-motion';
 import { 
-  Terminal, ShieldAlert, Zap, Database, 
-  Activity, ArrowRight, FileJson, 
-  Lock, CheckCircle2, Scan, ChevronDown,
-  Cpu, Beaker, GitBranch, AlertTriangle
+  FileJson, 
+  CheckCircle2, 
+  Cpu, 
 } from 'lucide-react';
 
 // --- THEME TOKENS ---
 const THEME = {
   black: '#050505',
   dark: '#0A0A0A',
-  lime: '#D9FF00', // The Bio-Acid Signature
-  orange: '#FF3300', // Safety Alert
-  cyan: '#00F0FF', // Data/Logic
+  lime: '#D9FF00', 
+  orange: '#FF3300', 
+  cyan: '#00F0FF', 
   dim: '#444444',
   text: '#EAEAEA'
 };
@@ -117,7 +112,7 @@ const LogEntry = ({ log }) => {
   );
 };
 
-// 2. The Equation Visualizer (From Section IV-C: Confidence Scoring)
+// 2. The Equation Visualizer
 const EquationVisualizer = () => {
   return (
     <div className="bg-[#111] border border-[#333] p-8 relative overflow-hidden group">
@@ -159,10 +154,12 @@ const EquationVisualizer = () => {
 };
 
 // --- SECTIONS ---
+import { useRouter } from 'next/navigation'; // Add this import
 
 const Hero = () => {
   const { scrollY } = useScroll();
   const y = useTransform(scrollY, [0, 500], [0, 200]);
+  const router = useRouter(); // Hook for navigation
 
   return (
     <section className="min-h-screen flex flex-col justify-center px-6 md:px-20 relative pt-20 border-b border-[#222]">
@@ -178,8 +175,8 @@ const Hero = () => {
         </div>
 
         <h1 className="text-6xl md:text-9xl font-bold tracking-tighter leading-[0.9] mb-8 text-white mix-blend-exclusion">
-          CLINICAL <br />
-          <span className="text-[#555]">REASONING.</span>
+          PROMPT <br />
+          <span className="text-[#555]">BIOTICS.</span>
         </h1>
 
         <div className="flex flex-col md:flex-row gap-12 md:items-end">
@@ -202,17 +199,19 @@ const Hero = () => {
         </div>
 
         <div className="mt-16 flex gap-6">
-          <button className="bg-[#D9FF00] text-black px-8 py-4 font-bold font-mono text-xs uppercase hover:bg-white transition-colors">
-            Run Simulation
+          <button 
+            onClick={() => router.push('/auth/signup')} // UPDATED: Goes to Login
+            className="bg-[#D9FF00] text-black px-8 py-4 font-bold font-mono text-xs uppercase hover:bg-white transition-colors"
+          >
+            Start Demo
           </button>
-          <button className="border border-[#333] text-white px-8 py-4 font-bold font-mono text-xs uppercase hover:border-white transition-colors flex items-center gap-2">
-            <FileJson size={14} /> View Methodology
-          </button>
+       
         </div>
       </motion.div>
     </section>
   );
 };
+
 
 const MethodologyGrid = () => (
   <section className="py-32 px-6 md:px-20 border-b border-[#222]">
@@ -221,19 +220,21 @@ const MethodologyGrid = () => (
     <div className="grid md:grid-cols-2 gap-20">
       <div className="space-y-12">
         <div className="group">
+          {/* FIX: Escaped quotes */}
           <h3 className="text-2xl font-bold text-white mb-4 group-hover:text-[#D9FF00] transition-colors">
-            1. The "Brain": Fine-Tuned LLM
+            1. The &quot;Brain&quot;: Fine-Tuned LLM
           </h3>
           <p className="text-gray-400 leading-relaxed">
-            We employ Google's <strong>Gemini 2.0 Flash</strong>, fine-tuned on a custom corpus of 
+            We employ Google&apos;s <strong>Gemini 2.0 Flash</strong>, fine-tuned on a custom corpus of 
             3,847 clinical-nutritional examples. Unlike generic models, it is optimized for 
             medical terminology and specific dietary interventions.
           </p>
         </div>
 
         <div className="group">
+          {/* FIX: Escaped quotes */}
           <h3 className="text-2xl font-bold text-white mb-4 group-hover:text-[#00F0FF] transition-colors">
-            2. The "Fuel": USDA Integration
+            2. The &quot;Fuel&quot;: USDA Integration
           </h3>
           <p className="text-gray-400 leading-relaxed">
             The system ingests the <strong>USDA FoodData Central</strong> database (298,476 items). 
@@ -243,17 +244,18 @@ const MethodologyGrid = () => (
         </div>
 
         <div className="group">
+          {/* FIX: Escaped quotes */}
           <h3 className="text-2xl font-bold text-white mb-4 group-hover:text-[#FF3300] transition-colors">
-            3. The "Guardrails": Safety Framework
+            3. The &quot;Guardrails&quot;: Safety Framework
           </h3>
           <p className="text-gray-400 leading-relaxed">
             A deterministic rules engine runs parallel to the AI. It checks for:
-            <ul className="list-disc list-inside mt-2 space-y-1 text-sm font-mono text-[#777]">
+          </p>
+          <ul className="list-disc list-inside mt-2 space-y-1 text-sm font-mono text-[#777]">
               <li>Drug-Nutrient Interactions (e.g. Warfarin + Vitamin K)</li>
               <li>Contraindications (e.g. CKD + Potassium)</li>
               <li>Dosage Hallucinations</li>
-            </ul>
-          </p>
+          </ul>
         </div>
       </div>
 
